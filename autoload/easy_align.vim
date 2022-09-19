@@ -197,11 +197,11 @@ fun! s:exit(msg)
     throw 'exit'
 endf
 
-fun! s:ltrim(str)
+fun! s:trim_left(str)
     return substitute(a:str, '^\s\+', '', '')
 endf
 
-fun! s:rtrim(str)
+fun! s:trim_right(str)
     return substitute(a:str, '\s\+$', '', '')
 endf
 
@@ -356,7 +356,7 @@ fun! s:split_line(line, nth, modes, cycle, fc, lc, pattern, stick_to_left, ignor
     let [pmode, mode] = [mode, s:shift(a:modes, a:cycle)]
 
     " Preserve indentation - merge first two tokens
-    if len(tokens) > 1 && empty(s:rtrim(tokens[0]))
+    if len(tokens) > 1 && empty(s:trim_right(tokens[0]))
         let tokens[1] = tokens[0] . tokens[1]
         call remove(tokens, 0)
         call remove(delims, 0)
@@ -443,8 +443,8 @@ fun! s:do_align(todo, modes, all_tokens, all_delims, fl, ll, fc, lc, nth, recur,
 
         let prefix = nth > 0 ? join(tokens[0 : nth - 1], '') : ''
         let delim  = delims[nth]
-        let token  = s:rtrim( tokens[nth] )
-        let token  = s:rtrim( strpart(token, 0, len(token) - len(s:rtrim(delim))) )
+        let token  = s:trim_right( tokens[nth] )
+        let token  = s:trim_right( strpart(token, 0, len(token) - len(s:trim_right(delim))) )
         if empty(delim) && !exists('tokens[nth + 1]') && d.ignore_unmatched
             continue
         en
@@ -506,7 +506,7 @@ fun! s:do_align(todo, modes, all_tokens, all_delims, fl, ll, fc, lc, nth, recur,
                     en
                 endwhile
 
-                let token = tindent . s:ltrim(token)
+                let token = tindent . s:trim_left(token)
                 if mode ==? 'c'
                     let token = substitute(token, '\s*$', repeat(' ', indent), '')
                 en
@@ -533,7 +533,7 @@ fun! s:do_align(todo, modes, all_tokens, all_delims, fl, ll, fc, lc, nth, recur,
 
         " Remove the leading whitespaces of the next token
         if len(tokens) > nth + 1
-            let tokens[nth + 1] = s:ltrim(tokens[nth + 1])
+            let tokens[nth + 1] = s:trim_left(tokens[nth + 1])
         en
 
         " Pad the token with spaces
@@ -550,7 +550,7 @@ fun! s:do_align(todo, modes, all_tokens, all_delims, fl, ll, fc, lc, nth, recur,
         elseif mode ==? 'r'
             let pad = repeat(' ', max.just_len - pw - tw)
             let indent = matchstr(token, '^\s*')
-            let token = indent . pad . s:ltrim(token)
+            let token = indent . pad . s:trim_left(token)
 
         elseif mode ==? 'c'
             let p1  = max.pivot_len2 - (pw * 2 + tw)
@@ -561,15 +561,15 @@ fun! s:do_align(todo, modes, all_tokens, all_delims, fl, ll, fc, lc, nth, recur,
             en
             let strip = s:ceil2(max.token_len - max.strip_len) / 2
             let indent = matchstr(token, '^\s*')
-            let token = indent. repeat(' ', pf1 / 2) .s:ltrim(token). repeat(' ', p2 / 2)
+            let token = indent. repeat(' ', pf1 / 2) .s:trim_left(token). repeat(' ', p2 / 2)
             let token = substitute(token, repeat(' ', strip) . '$', '', '')
 
             if d.stick_to_left
-                if empty(s:rtrim(token))
+                if empty(s:trim_right(token))
                     let center = len(token) / 2
                     let [token, rpad] = [strpart(token, 0, center), strpart(token, center)]
                 el
-                    let [token, rpad] = [s:rtrim(token), matchstr(token, '\s*$')]
+                    let [token, rpad] = [s:trim_right(token), matchstr(token, '\s*$')]
                 en
             en
         en
@@ -1016,8 +1016,8 @@ fun! s:alternating_modes(mode)
 endf
 
 fun! s:update_lines(todo)
-    for [line, content] in items(a:todo)
-        call setline(line, s:rtrim(content))
+    for [lnum, content] in items(a:todo)
+        call setline(lnum, s:trim_right(content))
     endfor
 endf
 
@@ -1149,7 +1149,7 @@ function s:summarize(opts, recur, mode_sequence)
 endf
 
 fun! s:align(bang, live, visualmode, first_line, last_line, expr)
-    " Heuristically determine if the user was in visual mode
+    " Heuristically determine  if the user was in visual mode
     if a:visualmode == 'command'
         let vis  =     a:first_line == line("'<")
               \ && a:last_line  == line("'>")
@@ -1203,7 +1203,17 @@ fun! s:align(bang, live, visualmode, first_line, last_line, expr)
         en
 
         if !s:live
-            let output = s:process(range, mode, n, ch, s:normalize_options(opts), regexp, rules, bvis)
+            let output = s:process(
+                             \ range,
+                             \ mode,
+                             \ n,
+                             \ ch,
+                             \ s:normalize_options(opts),
+                             \ regexp,
+                             \ rules,
+                             \ bvis,
+                          \ )
+
             call s:update_lines(output.todo)
             let copts = call('s:summarize', output.summarize)
             let g:easy_align_last_command = s:echon('', n, regexp, ch, copts, '')
