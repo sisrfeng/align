@@ -1,3 +1,9 @@
+"\ update:
+    "\ 1 清理本插件的legacy ,
+    "\ 2 left_margin和right_margin默认为空串 不再是2个空格 ,
+    "\ 3 把type()相应的数字改为v:t_list等
+
+
 if exists("g:loaded_easy_align")
     finish
 en
@@ -29,29 +35,23 @@ let s:easy_align_delimiters_default = {
 
 let s:mode_labels = { 'l': '', 'r': '[R]', 'c': '[C]' }
 
-"\ Backward-compatibility:
-    "\ if k == 'margin_left'   | let k = 'left_margin'    | endif
-    "\ if k == 'margin_right'  | let k = 'right_margin'   | endif
-    "\ if k == 'mode_sequence' | let k = 'align'          | endif
 
 let s:known_options = {
-    \ 'left_margin'       :[0, 1 ] ,
-    \ 'right_margin'      :[0, 1 ] ,
+    \ 'left_margin'       :[v:t_string, v:t_number ] ,
+    \ 'right_margin'      :[v:t_string, v:t_number ] ,
     \
-    \ 'margin_left'       :[0, 1 ] ,
-    \ 'margin_right'      :[0, 1 ] ,
+    \ 'stick_to_left'     :[v:t_number] ,
+    \ 'indentation'       :[v:t_string] ,
+    \ 'ignore_groups'     :[v:t_list] ,
+    \ 'ignore_unmatched'  :[v:t_number] ,
+    \ 'delimiter_align'   :[v:t_string] ,
+    \ 'ignores'           :[v:t_list] ,
+    \ 'filter'            :[v:t_string] ,
     \
-    \ 'stick_to_left'     :[0] ,
-    \ 'indentation'       :[1] ,
-    \ 'ignore_groups'     :[3] ,
-    \ 'ignore_unmatched'  :[0] ,
-    \ 'delimiter_align'   :[1] ,
-    \ 'ignores'           :[3] ,
-    \ 'filter'            :[1] ,
-    \
-    \ 'mode_sequence'     :[1] ,
-    \ 'align'             :[1] ,
+    \ 'align'             :[v:t_string] ,
+    "\ 作者之前用'mode_sequence', 而非'align', 但现在仍有mode_sequence这个变量,   :help easyalign__option__align
    \ }
+
 
 let s:option_values = {
 \ 'indentation'      : ['shallow', 'deep', 'none', 'keep', -1],
@@ -67,9 +67,6 @@ let s:option_values = {
 \ }
 
 let s:shorthand = {
-    \ 'margin_left'      : 'lm'  ,
-    \ 'margin_right'     : 'rm'  ,
-    \
     \ 'stick_to_left'    : 'stl' ,
     \
     \ 'left_margin'      : 'lm'  ,
@@ -80,7 +77,6 @@ let s:shorthand = {
     \ 'ignore_groups'    : 'ig'  ,
     \ 'ignore_unmatched' : 'iu'  ,
     \ 'delimiter_align'  : 'da'  ,
-    \ 'mode_sequence'    : 'a'   ,
     \ 'ignores'          : 'ig'  ,
     \ 'filter'           : 'f'   ,
     \ 'align'            : 'a'   ,
@@ -215,27 +211,21 @@ fun! s:fuzzy_lu(key)
     en
     let key = tolower(a:key)
 
-    " stl -> ^s.*_t.*_l.*
+    "\ stick_to_left ?  还是statusline?
+    " stl -> ¿^s.*_t.*_l.*¿
     let regexp1 = '^' .key[0]. '.*' .substitute(key[1 : -1], '\(.\)', '_\1.*', 'g')
-    let matches = filter(keys(s:known_options), 'v:val =~ regexp1')
-    if len(matches) == 1
-        return matches[0]
-    en
+    let matches = filter( keys(s:known_options), 'v:val =~ regexp1')
+    if len(matches) == 1  | return matches[0]  | en
 
-    " stl -> ^s.*t.*l.*
+    " stl -> ¿^s.*t.*l.*¿
     let regexp2 = '^' . substitute(substitute(key, '-', '_', 'g'), '\(.\)', '\1.*', 'g')
-    let matches = filter(keys(s:known_options), 'v:val =~ regexp2')
+    let matches = filter( keys(s:known_options), 'v:val =~ regexp2')
 
     if empty(matches)
         call s:exit("Unknown option key: ". a:key)
     elseif len(matches) == 1
         return matches[0]
     el
-        " Avoid ambiguity introduced by deprecated margin_left and margin_right
-        if sort(matches) == ['margin_left', 'margin_right', 'mode_sequence']
-            return 'mode_sequence'
-        en
-
         if sort(matches) == ['ignore_groups', 'ignores']
             return 'ignore_groups'
         en
@@ -256,10 +246,6 @@ fun! s:normalize_options(opts)
     for k in keys(a:opts)
         let v = a:opts[k]
         let k = s:fuzzy_lu(k)
-        " Backward-compatibility
-        if k == 'margin_left'   | let k = 'left_margin'    | endif
-        if k == 'margin_right'  | let k = 'right_margin'   | endif
-        if k == 'mode_sequence' | let k = 'align'          | endif
         let ret[k] = v
         unlet v
     endfor
@@ -278,7 +264,8 @@ fun! s:validate_options(opts)
     for k in keys(a:opts)
         let v = a:opts[k]
         if index(s:known_options[k], type(v)) == -1
-            call s:exit("Invalid type for option: ". k)
+            call s:exit( k . "选项的参数类型错误" .
+               \ " , 传入的v是" . string(v) . " , 但其实它的type 要和这个list里的一个相同:" . string(s:known_options[k]) )
         en
         unlet v
     endfor
@@ -644,9 +631,10 @@ fun! s:atoi(str)
     return (a:str =~ '^[0-9]\+$') ? str2nr(a:str) : a:str
 endf
 
+
 fun! s:shift_opts(opts, key, vals)
     let val = s:shift(a:vals, 1)
-    if type(val) == 0 && val == -1
+    if type(val) == v:t_number && val == -1
         call remove(a:opts, a:key)
     el
         let a:opts[a:key] = val
@@ -901,7 +889,7 @@ fun! s:parse_shorthand_opts(expr)
                     elseif key == 'ig'
                         try
                             let arr = eval(rest)
-                            if type(arr) == 3
+                            if type(arr) == v:t_list
                                 let opts[key] = arr
                             el
                                 throw 'Not an array'
@@ -943,7 +931,7 @@ fun! s:parse_args(args)
             let [l, r, c, k, s, d, n] = ['l', 'r', 'c', 'k', 's', 'd', 'n']
             let [L, R, C, K, S, D, N] = ['l', 'r', 'c', 'k', 's', 'd', 'n']
             let o = eval(cand)
-            if type(o) == 4
+            if type(o) == v:t_dict
                 let opts = o
                 if args[midx - 1 : midx] == '\ '
                     let midx += 1
@@ -1050,10 +1038,11 @@ fun! s:build_dict(delimiters, ch, regexp, opts)
     "\ echom "a:opts 是: "   a:opts
     "\ a:opts 是:  {}
 
-    let ml = get(dict, 'left_margin', ' ')
-    let mr = get(dict, 'right_margin', ' ')
-    if type(ml) == 0 | let ml = repeat(' ', ml) | endif
-    if type(mr) == 0 | let mr = repeat(' ', mr) | endif
+    "\ let ml = get(dict, 'left_margin', ' ')
+    let ml = get(dict, 'left_margin',   g:easy_align_left_margin )
+    let mr = get(dict, 'right_margin',  g:easy_align_right_margin)
+    if type(ml) == v:t_number | let ml = repeat(' ', ml) | endif
+    if type(mr) == v:t_number | let mr = repeat(' ', mr) | endif
     call extend(
         \ dict,
         \ { 'ml': ml, 'mr': mr },
@@ -1115,7 +1104,9 @@ fun! s:process(range, mode, n, ch, opts, regexp, rules, bvis)
                     \ a:opts,
                    \ )
     let [mode_sequence, recur] = s:build_mode_sequence(
-        \ get(dict, 'align', recur == 2 ? s:alternating_modes(a:mode) : a:mode),
+        \ get(dict, 'align',    recur == 2
+                                    \ ? s:alternating_modes(a:mode)
+                                    \ : a:mode),
         \ recur)
 
     let ve = &virtualedit

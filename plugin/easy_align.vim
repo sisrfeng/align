@@ -47,7 +47,7 @@ fun! s:repeat_visual()
         if ve_save != &virtualedit
             let &virtualedit = ve_save
         en
-    endtry
+    endt
 endf
 
 fun! s:repeat_in_visual()
@@ -58,7 +58,7 @@ fun! s:repeat_in_visual()
 endf
 
 fun! s:set_repeat()
-    silent! call repeat#set("\<Plug>(EasyAlignRepeat)")
+    sil! call repeat#set("\<Plug>(EasyAlignRepeat)")
 endf
 
 fun! s:generic_easy_align_op(type, vmode, live)
@@ -91,7 +91,7 @@ fun! s:generic_easy_align_op(type, vmode, live)
         call s:set_repeat()
     finally
         let &selection = sel_save
-    endtry
+    endt
 endf
 
 fun! s:easy_align_op(type, ...)
@@ -111,7 +111,7 @@ fun! s:easy_align_repeat()
             norm! .
         finally
             unlet! g:easy_align_need_repeat
-        endtry
+        endt
     en
 endf
 
